@@ -1,6 +1,8 @@
 Prometheus mDNS service discovery
 =================================
 
+(Under development - doesn't quite work yet)
+
 Build:
 
     go build ./... && ./prometheus-mdns-sd

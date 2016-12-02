@@ -15,11 +15,12 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
+	"log"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
 	"context"
@@ -30,6 +31,10 @@ import (
 const (
 	dnsNameLabel = model.MetaLabelPrefix + "mdns_name"
 )
+
+func init() {
+	log.SetOutput(ioutil.Discard)
+}
 
 func main() {
 	fmt.Println("main.start")
@@ -94,7 +99,7 @@ func (dd *Discovery) refreshAll(ctx context.Context, ch chan<- []*TargetGroup) {
 	for _, name := range names {
 		go func(n string) {
 			if err := dd.refresh(ctx, n, ch); err != nil {
-				log.Errorf("Error refreshing DNS targets: %s", err)
+				//log.Errorf("Error refreshing DNS targets: %s", err)
 			}
 			wg.Done()
 		}(name)

@@ -21,9 +21,9 @@ import (
 	"sync"
 	"time"
 
+	"context"
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
-	"context"
 
 	"github.com/hashicorp/mdns"
 )
@@ -47,9 +47,9 @@ func main() {
 
 	go d.Run(ctx, ch)
 
-	func () {
+	func() {
 		for targetList := range ch {
-	y, _ := yaml.Marshal(targetList)
+			y, _ := yaml.Marshal(targetList)
 			fmt.Println("GOT TARGET LIST:\n", string(y))
 		}
 	}()
@@ -68,7 +68,7 @@ type Discovery struct {
 
 // Run implements the TargetProvider interface.
 func (dd *Discovery) Run(ctx context.Context, ch chan<- []*TargetGroup) {
-			fmt.Println("Discovery.run.start")
+	fmt.Println("Discovery.run.start")
 	defer close(ch)
 
 	ticker := time.NewTicker(dd.interval)
@@ -129,7 +129,7 @@ func (dd *Discovery) refresh(ctx context.Context, name string, ch chan<- []*Targ
 			//dnsNameLabel:       model.LabelValue(name),
 			dnsNameLabel:        model.LabelValue(response.Host),
 			model.InstanceLabel: model.LabelValue(strings.TrimRight(response.Host, ".")),
-		model.SchemeLabel: model.LabelValue("http"),
+			model.SchemeLabel:   model.LabelValue("http"),
 		}
 
 		// Set model.SchemeLabel to 'http' or 'https'

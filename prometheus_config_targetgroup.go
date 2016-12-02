@@ -104,5 +104,3 @@ func (tg *TargetGroup) UnmarshalJSON(b []byte) error {
 	tg.Labels = g.Labels
 	return nil
 }
-
-

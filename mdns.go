@@ -43,7 +43,6 @@ func init() {
 }
 
 func main() {
-	fmt.Println("main.start")
 	d := &Discovery{
 		interval: time.Duration(2 * time.Second),
 	}
@@ -55,8 +54,8 @@ func main() {
 
 	func() {
 		for targetList := range ch {
-			y, _ := json.Marshal(targetList)
-			fmt.Println("GOT TARGET LIST:\n", string(y))
+			y, _ := json.MarshalIndent(targetList, "", "\t")
+			fmt.Println(string(y))
 		}
 	}()
 }
@@ -64,17 +63,11 @@ func main() {
 // Discovery periodically performs DNS-SD requests. It implements
 // the TargetProvider interface.
 type Discovery struct {
-	names []string
-
 	interval time.Duration
-	m        sync.RWMutex
-	port     int
-	qtype    uint16
 }
 
 // Run implements the TargetProvider interface.
 func (dd *Discovery) Run(ctx context.Context, ch chan<- []*TargetGroup) {
-	fmt.Println("Discovery.run.start")
 	defer close(ch)
 
 	ticker := time.NewTicker(dd.interval)
@@ -194,8 +187,6 @@ func (dd *Discovery) refresh(ctx context.Context, name string, ch chan<- *Target
 				tg.Targets[0] = fmt.Sprintf("[%s]:%d", response.AddrV6, response.Port)
 			}
 
-			fmt.Printf("now has TargetGroup %+v\n", tg)
-			// TODO: Sends lots of duplicate data...
 			ch <- tg
 		}
 	}

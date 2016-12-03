@@ -98,24 +98,39 @@ func (dd *Discovery) refreshAll(ctx context.Context, ch chan<- []*TargetGroup) {
 
 	names := []string{
 		"_prometheus-http._tcp",
-		//"_prometheus-https._tcp",
+		"_prometheus-https._tcp",
 	}
+
+	targetChan := make(chan *TargetGroup)
+	targets := make([]*TargetGroup, 0)
+
+	// Collect all lookup results into one list and emit it once they're all
+	// done.
+	go func() {
+		for target := range targetChan {
+			targets = append(targets, target)
+		}
+
+		ch <- targets
+	}()
 
 	wg.Add(len(names))
 	for _, name := range names {
 		go func(n string) {
-			if err := dd.refresh(ctx, n, ch); err != nil {
+			if err := dd.refresh(ctx, n, targetChan); err != nil {
 				//log.Errorf("Error refreshing DNS targets: %s", err)
 			}
 			wg.Done()
 		}(name)
 	}
 
+	// Close chan when all lookups are done
 	wg.Wait()
+	close(targetChan)
 }
 
 // TODO: Re-do so we select over ctx.Done(), a mdns response, mdns being done or an error
-func (dd *Discovery) refresh(ctx context.Context, name string, ch chan<- []*TargetGroup) error {
+func (dd *Discovery) refresh(ctx context.Context, name string, ch chan<- *TargetGroup) error {
 	// Set up output channel and read discovered data
 	responses := make(chan *mdns.ServiceEntry, 100)
 
@@ -127,8 +142,6 @@ func (dd *Discovery) refresh(ctx context.Context, name string, ch chan<- []*Targ
 		close(responses)
 	}()
 
-	targetList := make([]*TargetGroup, 0)
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -137,6 +150,7 @@ func (dd *Discovery) refresh(ctx context.Context, name string, ch chan<- []*Targ
 			if !chanOpen {
 				return nil
 			}
+
 			// Make a new targetGroup with one address-label for each thing we scape
 			//
 			// Check https://github.com/prometheus/common/blob/master/model/labels.go for possible labels.
@@ -181,9 +195,8 @@ func (dd *Discovery) refresh(ctx context.Context, name string, ch chan<- []*Targ
 			}
 
 			fmt.Printf("now has TargetGroup %+v\n", tg)
-			targetList = append(targetList, tg)
 			// TODO: Sends lots of duplicate data...
-			ch <- targetList
+			ch <- tg
 		}
 	}
 }

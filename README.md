@@ -18,6 +18,3 @@ Manually create service announcement (OS X):
 Bugs/todo at time of writing:
 
  - Doesn't actually write out a file for Prometheus to consume
- - Doesn't parse the TXT-segment
- - Should merge `_prometheus-http._tcp` and `_prometheus-https._tcp` segments properly.
- - Doesn't abort right away if context is canceled.

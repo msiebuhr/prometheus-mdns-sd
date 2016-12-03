@@ -33,10 +33,6 @@ type TargetGroup struct {
 	Labels  map[string]string `json:"labels,omitempty"`
 }
 
-const (
-	dnsNameLabel = model.MetaLabelPrefix + "mdns_name"
-)
-
 func init() {
 	// hashicorp/mdns outputs a lot of garbage on stdlog, so quiet it down...
 	log.SetOutput(ioutil.Discard)

@@ -14,15 +14,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"context"
 	"github.com/prometheus/common/model"
 
 	"github.com/hashicorp/mdns"
@@ -33,14 +35,20 @@ type TargetGroup struct {
 	Labels  map[string]string `json:"labels,omitempty"`
 }
 
+var (
+	interval = flag.Duration("interval", 10*time.Second, "How often to query for services")
+	output   = flag.String("out", "-", "Filename to write output to")
+)
+
 func init() {
 	// hashicorp/mdns outputs a lot of garbage on stdlog, so quiet it down...
 	log.SetOutput(ioutil.Discard)
 }
 
 func main() {
+	flag.Parse()
 	d := &Discovery{
-		interval: time.Duration(2 * time.Second),
+		interval: *interval,
 	}
 
 	ctx := context.Background()
@@ -50,8 +58,24 @@ func main() {
 
 	func() {
 		for targetList := range ch {
-			y, _ := json.MarshalIndent(targetList, "", "\t")
-			fmt.Println(string(y))
+			// TODO: Don't bother with all this if result hasn't changed from
+			// last time...
+
+			y, err := json.MarshalIndent(targetList, "", "\t")
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			if *output == "-" {
+				fmt.Println(string(y))
+			} else {
+				file, err := os.Create(*output) // For read access.
+				if err != nil {
+					log.Fatal(err)
+				}
+				file.Write(y)
+				file.Close()
+			}
 		}
 	}()
 }

@@ -14,6 +14,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -23,16 +24,21 @@ import (
 
 	"context"
 	"github.com/prometheus/common/model"
-	"gopkg.in/yaml.v2"
 
 	"github.com/hashicorp/mdns"
 )
+
+type TargetGroup struct {
+	Targets []string          `json:"targets,omitempty"`
+	Labels  map[string]string `json:"labels,omitempty"`
+}
 
 const (
 	dnsNameLabel = model.MetaLabelPrefix + "mdns_name"
 )
 
 func init() {
+	// hashicorp/mdns outputs a lot of garbage on stdlog, so quiet it down...
 	log.SetOutput(ioutil.Discard)
 }
 
@@ -49,7 +55,7 @@ func main() {
 
 	func() {
 		for targetList := range ch {
-			y, _ := yaml.Marshal(targetList)
+			y, _ := json.Marshal(targetList)
 			fmt.Println("GOT TARGET LIST:\n", string(y))
 		}
 	}()
@@ -125,35 +131,30 @@ func (dd *Discovery) refresh(ctx context.Context, name string, ch chan<- []*Targ
 
 	// Make a new targetGroup with one address-label for each thing we scape
 	for response := range responses {
-		labelSet := model.LabelSet{
+		labelSet := map[string]string{
 			//dnsNameLabel:       model.LabelValue(name),
-			dnsNameLabel:        model.LabelValue(response.Host),
-			model.InstanceLabel: model.LabelValue(strings.TrimRight(response.Host, ".")),
-			model.SchemeLabel:   model.LabelValue("http"),
+			model.MetaLabelPrefix + "mdns_name": response.Host,
+			"instance":                          strings.TrimRight(response.Host, "."),
+			"__scheme__":                        "http",
 		}
 
 		// Set model.SchemeLabel to 'http' or 'https'
 		if strings.Contains(response.Name, "_prometheus-https._tcp") {
-			labelSet[model.SchemeLabel] = model.LabelValue("https")
+			labelSet["__scheme__"] = "https"
 		}
 
 		// Figure out an address
-		addr := model.LabelValue(fmt.Sprintf("%s:%d", response.Host, response.Port))
+		addr := fmt.Sprintf("%s:%d", response.Host, response.Port)
 
 		if response.AddrV4 != nil {
-			addr = model.LabelValue(fmt.Sprintf("%s:%d", response.AddrV4, response.Port))
+			addr = fmt.Sprintf("%s:%d", response.AddrV4, response.Port)
 		} else if response.AddrV6 != nil {
-			addr = model.LabelValue(fmt.Sprintf("[%s]:%d", response.AddrV6, response.Port))
+			addr = fmt.Sprintf("[%s]:%d", response.AddrV6, response.Port)
 		}
 
 		tg := &TargetGroup{
-			Labels: labelSet,
-			Targets: []model.LabelSet{
-				model.LabelSet{
-					model.AddressLabel: addr,
-				},
-			},
-			Source: name,
+			Labels:  labelSet,
+			Targets: []string{addr},
 		}
 
 		fmt.Printf("now has TargetGroup %+v\n", tg)

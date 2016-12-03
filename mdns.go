@@ -45,7 +45,7 @@ func init() {
 func main() {
 	fmt.Println("main.start")
 	d := &Discovery{
-		interval: time.Duration(10 * time.Second),
+		interval: time.Duration(2 * time.Second),
 	}
 
 	ctx := context.Background()
@@ -129,66 +129,61 @@ func (dd *Discovery) refresh(ctx context.Context, name string, ch chan<- []*Targ
 
 	targetList := make([]*TargetGroup, 0)
 
-	// Make a new targetGroup with one address-label for each thing we scape
-	//
-	// Check https://github.com/prometheus/common/blob/master/model/labels.go for possible labels.
-	for response := range responses {
-		tg := &TargetGroup{
-			Labels: map[string]string{
-				model.InstanceLabel: strings.TrimRight(response.Host, "."),
-				model.SchemeLabel:   "http",
-			},
-			Targets: []string{fmt.Sprintf("%s:%d", response.Host, response.Port)},
-		}
-
-		// Set model.SchemeLabel to 'http' or 'https'
-		if strings.Contains(response.Name, "_prometheus-https._tcp") {
-			tg.Labels[model.SchemeLabel] = "https"
-		}
-
-		// Parse InfoFields and set path as model.MetricsPathLabel if it's
-		// there.
-		for _, field := range response.InfoFields {
-			parts := strings.SplitN(field, "=", 2)
-
-			// If there is no key, set one
-			if len(parts) == 1 {
-				parts = append(parts, "")
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case response, chanOpen := <-responses:
+			if !chanOpen {
+				return nil
+			}
+			// Make a new targetGroup with one address-label for each thing we scape
+			//
+			// Check https://github.com/prometheus/common/blob/master/model/labels.go for possible labels.
+			tg := &TargetGroup{
+				Labels: map[string]string{
+					model.InstanceLabel: strings.TrimRight(response.Host, "."),
+					model.SchemeLabel:   "http",
+				},
+				Targets: []string{fmt.Sprintf("%s:%d", response.Host, response.Port)},
 			}
 
-			// Special-case query parameters too?
-			if parts[0] == "path" {
-				parts[0] = model.MetricsPathLabel
-			} else {
-				parts[0] = model.MetaLabelPrefix + /*"mdns_" +*/ parts[0]
+			// Set model.SchemeLabel to 'http' or 'https'
+			if strings.Contains(response.Name, "_prometheus-https._tcp") {
+				tg.Labels[model.SchemeLabel] = "https"
 			}
 
-			tg.Labels[parts[0]] = parts[1]
+			// Parse InfoFields and set path as model.MetricsPathLabel if it's
+			// there.
+			for _, field := range response.InfoFields {
+				parts := strings.SplitN(field, "=", 2)
+
+				// If there is no key, set one
+				if len(parts) == 1 {
+					parts = append(parts, "")
+				}
+
+				// Special-case query parameters too?
+				if parts[0] == "path" {
+					parts[0] = model.MetricsPathLabel
+				} else {
+					parts[0] = model.MetaLabelPrefix + /*"mdns_" +*/ parts[0]
+				}
+
+				tg.Labels[parts[0]] = parts[1]
+			}
+
+			// Figure out an address
+			if response.AddrV4 != nil {
+				tg.Targets[0] = fmt.Sprintf("%s:%d", response.AddrV4, response.Port)
+			} else if response.AddrV6 != nil {
+				tg.Targets[0] = fmt.Sprintf("[%s]:%d", response.AddrV6, response.Port)
+			}
+
+			fmt.Printf("now has TargetGroup %+v\n", tg)
+			targetList = append(targetList, tg)
+			// TODO: Sends lots of duplicate data...
+			ch <- targetList
 		}
-
-		// Figure out an address
-		if response.AddrV4 != nil {
-			tg.Targets[0] = fmt.Sprintf("%s:%d", response.AddrV4, response.Port)
-		} else if response.AddrV6 != nil {
-			tg.Targets[0] = fmt.Sprintf("[%s]:%d", response.AddrV6, response.Port)
-		}
-
-		fmt.Printf("now has TargetGroup %+v\n", tg)
-		targetList = append(targetList, tg)
 	}
-
-	fmt.Printf("now has TargetGroupList %+v\n", targetList)
-
-	// Fail...
-	//if err != nil {
-	//	return err
-	//}
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case ch <- targetList:
-	}
-
-	return nil
 }

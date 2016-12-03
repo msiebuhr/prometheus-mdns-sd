@@ -131,16 +131,18 @@ func (dd *Discovery) refresh(ctx context.Context, name string, ch chan<- []*Targ
 
 	// Make a new targetGroup with one address-label for each thing we scape
 	for response := range responses {
-		labelSet := map[string]string{
-			//dnsNameLabel:       model.LabelValue(name),
-			model.MetaLabelPrefix + "mdns_name": response.Host,
-			"instance":                          strings.TrimRight(response.Host, "."),
-			"__scheme__":                        "http",
+		tg := &TargetGroup{
+			Labels: map[string]string{
+				model.MetaLabelPrefix + "mdns_name": response.Host,
+				"instance":                          strings.TrimRight(response.Host, "."),
+				model.SchemeLabel:                   "http",
+			},
+			Targets: []string{fmt.Sprintf("%s:%d", response.Host, response.Port)},
 		}
 
 		// Set model.SchemeLabel to 'http' or 'https'
 		if strings.Contains(response.Name, "_prometheus-https._tcp") {
-			labelSet["__scheme__"] = "https"
+			tg.Labels["__scheme__"] = "https"
 		}
 
 		// Parse InfoFields and set path as model.MetricsPathLabel if it's
@@ -159,26 +161,18 @@ func (dd *Discovery) refresh(ctx context.Context, name string, ch chan<- []*Targ
 				parts[0] = model.MetaLabelPrefix + /*"mdns_" +*/ parts[0]
 			}
 
-			labelSet[parts[0]] = parts[1]
+			tg.Labels[parts[0]] = parts[1]
 		}
 
 		// Figure out an address
-		addr := fmt.Sprintf("%s:%d", response.Host, response.Port)
-
 		if response.AddrV4 != nil {
-			addr = fmt.Sprintf("%s:%d", response.AddrV4, response.Port)
+			tg.Targets[0] = fmt.Sprintf("%s:%d", response.AddrV4, response.Port)
 		} else if response.AddrV6 != nil {
-			addr = fmt.Sprintf("[%s]:%d", response.AddrV6, response.Port)
-		}
-
-		tg := &TargetGroup{
-			Labels:  labelSet,
-			Targets: []string{addr},
+			tg.Targets[0] = fmt.Sprintf("[%s]:%d", response.AddrV6, response.Port)
 		}
 
 		fmt.Printf("now has TargetGroup %+v\n", tg)
 		targetList = append(targetList, tg)
-
 	}
 
 	fmt.Printf("now has TargetGroupList %+v\n", targetList)

@@ -143,6 +143,25 @@ func (dd *Discovery) refresh(ctx context.Context, name string, ch chan<- []*Targ
 			labelSet["__scheme__"] = "https"
 		}
 
+		// Parse InfoFields and set path as model.MetricsPathLabel if it's
+		// there.
+		for _, field := range response.InfoFields {
+			parts := strings.SplitN(field, "=", 2)
+
+			// If there is no key, set one
+			if len(parts) == 1 {
+				parts = append(parts, "")
+			}
+
+			if parts[0] == "path" {
+				parts[0] = model.MetricsPathLabel
+			} else {
+				parts[0] = model.MetaLabelPrefix + /*"mdns_" +*/ parts[0]
+			}
+
+			labelSet[parts[0]] = parts[1]
+		}
+
 		// Figure out an address
 		addr := fmt.Sprintf("%s:%d", response.Host, response.Port)
 
@@ -160,8 +179,6 @@ func (dd *Discovery) refresh(ctx context.Context, name string, ch chan<- []*Targ
 		fmt.Printf("now has TargetGroup %+v\n", tg)
 		targetList = append(targetList, tg)
 
-		// TODO: if HasTXT, parse InfoFields and set path as
-		// model.MetricsPathLabel if it's there.
 	}
 
 	fmt.Printf("now has TargetGroupList %+v\n", targetList)

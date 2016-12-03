@@ -130,19 +130,20 @@ func (dd *Discovery) refresh(ctx context.Context, name string, ch chan<- []*Targ
 	targetList := make([]*TargetGroup, 0)
 
 	// Make a new targetGroup with one address-label for each thing we scape
+	//
+	// Check https://github.com/prometheus/common/blob/master/model/labels.go for possible labels.
 	for response := range responses {
 		tg := &TargetGroup{
 			Labels: map[string]string{
-				model.MetaLabelPrefix + "mdns_name": response.Host,
-				"instance":                          strings.TrimRight(response.Host, "."),
-				model.SchemeLabel:                   "http",
+				model.InstanceLabel: strings.TrimRight(response.Host, "."),
+				model.SchemeLabel:   "http",
 			},
 			Targets: []string{fmt.Sprintf("%s:%d", response.Host, response.Port)},
 		}
 
 		// Set model.SchemeLabel to 'http' or 'https'
 		if strings.Contains(response.Name, "_prometheus-https._tcp") {
-			tg.Labels["__scheme__"] = "https"
+			tg.Labels[model.SchemeLabel] = "https"
 		}
 
 		// Parse InfoFields and set path as model.MetricsPathLabel if it's
@@ -155,6 +156,7 @@ func (dd *Discovery) refresh(ctx context.Context, name string, ch chan<- []*Targ
 				parts = append(parts, "")
 			}
 
+			// Special-case query parameters too?
 			if parts[0] == "path" {
 				parts[0] = model.MetricsPathLabel
 			} else {

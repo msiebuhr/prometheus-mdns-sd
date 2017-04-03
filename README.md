@@ -14,7 +14,3 @@ hostname for later re-labeling.
 Manually create service announcement (OS X):
 
     dns-sd -R "My test server with metrics-endpoint" _prometheus-http._tcp. . 9000 path=/metrics
-
-Bugs/todo at time of writing:
-
- - Doesn't actually write out a file for Prometheus to consume

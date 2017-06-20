@@ -24,6 +24,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"hash/fnv"
 
 	"github.com/prometheus/common/model"
 
@@ -56,8 +57,11 @@ func main() {
 
 	go d.Run(ctx, ch)
 
+	var oldHash uint64 = 0
+
 	func() {
 		for targetList := range ch {
+
 			// TODO: Don't bother with all this if result hasn't changed from
 			// last time...
 
@@ -65,6 +69,17 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
+
+			// Hash the output and skip writing if it isn't different from earlier
+			hasher := fnv.New64();
+			hasher.Write(y)
+			newHash := hasher.Sum64()
+
+			if (newHash == oldHash) {
+				fmt.Println("SKIP");
+				continue
+			}
+			oldHash = newHash;
 
 			if *output == "-" {
 				fmt.Println(string(y))

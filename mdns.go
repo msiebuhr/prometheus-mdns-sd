@@ -18,13 +18,14 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"hash/fnv"
 	"io/ioutil"
 	"log"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
-	"hash/fnv"
 
 	"github.com/prometheus/common/model"
 
@@ -34,6 +35,25 @@ import (
 type TargetGroup struct {
 	Targets []string          `json:"targets,omitempty"`
 	Labels  map[string]string `json:"labels,omitempty"`
+}
+
+type TargetGroups []*TargetGroup
+
+func (t TargetGroups) Len() int      { return len(t) }
+func (t TargetGroups) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
+func (t TargetGroups) Less(i, j int) bool {
+	ti := t[i]
+	tj := t[j]
+
+	// Dunno. Perhaps the other way around.
+	if len(ti.Targets) == 0 {
+		return false
+	}
+	if len(tj.Targets) == 0 {
+		return true
+	}
+
+	return strings.Compare(ti.Targets[0], tj.Targets[0]) == -1
 }
 
 var (
@@ -61,25 +81,23 @@ func main() {
 
 	func() {
 		for targetList := range ch {
+			targetGroups := TargetGroups(targetList)
+			sort.Sort(&targetGroups)
 
-			// TODO: Don't bother with all this if result hasn't changed from
-			// last time...
-
-			y, err := json.MarshalIndent(targetList, "", "\t")
+			y, err := json.MarshalIndent(targetGroups, "", "\t")
 			if err != nil {
 				log.Fatal(err)
 			}
 
 			// Hash the output and skip writing if it isn't different from earlier
-			hasher := fnv.New64();
+			hasher := fnv.New64()
 			hasher.Write(y)
 			newHash := hasher.Sum64()
 
-			if (newHash == oldHash) {
-				fmt.Println("SKIP");
+			if newHash == oldHash {
 				continue
 			}
-			oldHash = newHash;
+			oldHash = newHash
 
 			if *output == "-" {
 				fmt.Println(string(y))

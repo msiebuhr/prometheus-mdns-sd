@@ -14,6 +14,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
@@ -21,7 +22,6 @@ import (
 	"hash/fnv"
 	"io/ioutil"
 	"log"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/hashicorp/mdns"
+	"github.com/natefinch/atomic"
 )
 
 type TargetGroup struct {
@@ -102,12 +103,10 @@ func main() {
 			if *output == "-" {
 				fmt.Println(string(y))
 			} else {
-				file, err := os.Create(*output) // For read access.
-				if err != nil {
+				buf := bytes.NewBuffer(y)
+				if err := atomic.WriteFile(*output, buf); err != nil {
 					log.Fatal(err)
 				}
-				file.Write(y)
-				file.Close()
 			}
 		}
 	}()

@@ -20,7 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"hash/fnv"
-	"io/ioutil"
+
 	"log"
 	"sort"
 	"strings"
@@ -61,11 +61,6 @@ var (
 	interval = flag.Duration("interval", 10*time.Second, "How often to query for services")
 	output   = flag.String("out", "-", "Filename to write output to")
 )
-
-func init() {
-	// hashicorp/mdns outputs a lot of garbage on stdlog, so quiet it down...
-	log.SetOutput(ioutil.Discard)
-}
 
 func main() {
 	flag.Parse()
@@ -163,7 +158,7 @@ func (dd *Discovery) refreshAll(ctx context.Context, ch chan<- []*TargetGroup) {
 	for _, name := range names {
 		go func(n string) {
 			if err := dd.refresh(ctx, n, targetChan); err != nil {
-				//log.Errorf("Error refreshing DNS targets: %s", err)
+				log.Printf("Error refreshing DNS targets: %s", err)
 			}
 			wg.Done()
 		}(name)
